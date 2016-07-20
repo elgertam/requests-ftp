@@ -19,6 +19,7 @@ class FTPSession(requests.Session):
     def __init__(self):
         super(FTPSession, self).__init__()
         self.mount('ftp://', FTPAdapter())
+        self.mount('ftps://', FTPAdapter(tls=True))
 
     # Define our helper methods.
     def list(self, url, **kwargs):
@@ -126,9 +127,16 @@ def build_response(request, data, code, encoding):
     return response
 
 
+def ftp_connection_factory(tls):
+    if tls:
+        return ftplib.FTP_TLS()
+    else:
+        return ftplib.FTP()
+
+
 class FTPAdapter(requests.adapters.BaseAdapter):
     '''A Requests Transport Adapter that handles FTP urls.'''
-    def __init__(self):
+    def __init__(self, tls=False):
         super(FTPAdapter, self).__init__()
 
         # Build a dictionary keyed off the methods we support in upper case.
@@ -143,6 +151,8 @@ class FTPAdapter(requests.adapters.BaseAdapter):
             'HEAD': self.head,
             'GET': self.get,
         }
+
+        self.tls = tls
 
     def send(self, request, **kwargs):
         '''Sends a PreparedRequest object over FTP. Returns a response object.
@@ -165,7 +175,8 @@ class FTPAdapter(requests.adapters.BaseAdapter):
             return self.send_proxy(request, proxy, **kwargs)
 
         # Establish the connection and login if needed.
-        self.conn = ftplib.FTP()
+
+        self.conn = ftp_connection_factory(self.tls)
 
         # Use a flag to distinguish read vs connection timeouts, and a flat set
         # of except blocks instead of a nested try-except, because python 3
